@@ -2,7 +2,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="icon" type="image/png" href="peersky://static/assets/upload.ico" />
-<title>Upload</title>
+<title>Hyperdrive</title>
 <style>
   @import url("browser://theme/index.css");
   html {
@@ -23,8 +23,29 @@
     width: 100px;
     height: 100px;
   }
+
+  #pickerActions {
+    display: flex;
+    gap: 0.75em;
+    justify-content: center;
+    margin-top: 0.75em;
+  }
   #protocolSelect {
     margin-bottom: 20px;
+  }
+
+  #visibilityControl {
+    margin-left: 1em;
+  }
+
+  #visibilityHelp {
+    display: block;
+    margin: 0 0 1em;
+    opacity: 0.75;
+  }
+
+  [hidden] {
+    display: none !important;
   }
 
   a {
@@ -49,13 +70,26 @@
       <option value="ipfs">ipfs://</option>
     </select>
   </label>
-  <input type="file" id="fileInput" multiple webkitdirectory directory style="display: none;" />
+  <label id="visibilityControl" for="visibilitySelect">
+    Visibility:
+    <select id="visibilitySelect">
+      <option value="public" selected>Public</option>
+      <option value="private">Private</option>
+    </select>
+  </label>
+  <small id="visibilityHelp">Public uploads are announced and can be shared with a Hyper URL.</small>
+  <input type="file" id="fileInput" multiple style="display: none;" />
+  <input type="file" id="folderInput" multiple webkitdirectory directory style="display: none;" />
   <section id="uploadBox">
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-upload" viewBox="0 0 16 16">
       <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
       <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708z"/>
     </svg>  
   </section>
+  <div id="pickerActions">
+    <button id="chooseFiles" type="button">Choose files</button>
+    <button id="chooseFolder" type="button">Choose folder</button>
+  </div>
   <ul id="uploadListBox"></ul>
 </main>
 <script>
@@ -65,8 +99,25 @@
   
   const uploadBox = $('#uploadBox');
   const fileInput = $('#fileInput');
+  const folderInput = $('#folderInput');
   const uploadListBox = $('#uploadListBox');
   const protocolSelect = $('#protocolSelect');
+  const visibilityControl = $('#visibilityControl');
+  const visibilitySelect = $('#visibilitySelect');
+  const visibilityHelp = $('#visibilityHelp');
+
+  function updateVisibilityControl() {
+      const usesHyper = protocolSelect.value === 'hyper';
+      visibilityControl.hidden = !usesHyper;
+      visibilityHelp.hidden = !usesHyper;
+      visibilityHelp.textContent = visibilitySelect.value === 'private'
+          ? 'Private uploads remain unannounced on this device. They are not encrypted.'
+          : 'Public uploads are announced and can be shared with a Hyper URL.';
+  }
+
+  protocolSelect.onchange = updateVisibilityControl;
+  visibilitySelect.onchange = updateVisibilityControl;
+  updateVisibilityControl();
   
   // Enable drag-and-drop (files only; use file picker for directories)
   uploadBox.ondragover = (e) => { e.preventDefault(); return false; };
@@ -81,14 +132,19 @@
   uploadBox.onclick = () => {
       fileInput.click();
   };
+
+  $('#chooseFiles').onclick = () => fileInput.click();
+  $('#chooseFolder').onclick = () => folderInput.click();
   
   // Handle file selection
-  fileInput.onchange = async () => {
-      if (fileInput.files.length > 0) {
-          await uploadFiles(fileInput.files);
-          fileInput.value = ''; // Reset input
+  for (const input of [fileInput, folderInput]) {
+      input.onchange = async () => {
+          if (input.files.length > 0) {
+              await uploadFiles(input.files);
+              input.value = ''; // Allow selecting the same file or folder again
+          }
       }
-  };
+  }
   
   async function uploadFiles(files) {
       const uploadingItem = document.createElement('li');
@@ -99,6 +155,7 @@
       const protocol = protocolSelect.value;
   
       if (protocol === 'hyper') {
+          const visibility = visibilitySelect.value;
           let name = 'untitled'; // Default name if we can't determine one
           if (files.length > 0) {
               const file = files[0];
@@ -108,14 +165,18 @@
                   name = file.name;
               }
           }
-          const hyperdriveUrl = await generateHyperdriveKey(name);
-          console.log(`Hyper base URL: ${hyperdriveUrl}`);
-  
+          let hyperdriveUrl;
+          try {
+              hyperdriveUrl = await generateHyperdriveKey(name, visibility);
+          } catch (error) {
+              addError(name, error.message);
+              uploadingItem.remove();
+              return;
+          }
           for (const file of files) {
               const filePath = file.webkitRelativePath || file.name;
               const url = hyperdriveUrl + filePath.split('/').map(encodeURIComponent).join('/');
-              console.log(`Uploading ${filePath} to ${url}`);
-  
+
               try {
                   const buffer = await file.arrayBuffer();
                   const response = await fetch(url, {
@@ -134,7 +195,7 @@
                       continue;
                   }
   
-                  addURL(url);
+                  addURL(url, { name: filePath, visibility });
               } catch (error) {
                   console.error(`Error uploading ${file.name}:`, error);
                   addError(file.name, error.message);
@@ -171,9 +232,10 @@
       uploadingItem.remove();
   }
   
-  async function generateHyperdriveKey(name) {
+  async function generateHyperdriveKey(name, visibility) {
       try {
-          const response = await fetch(`hyper://localhost/?key=${name}`, { method: 'POST' });
+          const params = new URLSearchParams({ key: name, visibility });
+          const response = await fetch(`hyper://localhost/?${params}`, { method: 'POST' });
           if (!response.ok) {
               throw new Error(`Failed to generate Hyperdrive key: ${response.statusText}`);
           }
@@ -184,12 +246,19 @@
       }
   }
   
-  function addURL(url) {
+  function addURL(url, { name, visibility } = {}) {
       const li = document.createElement('li');
       const a = document.createElement('a');
       a.href = url;
-      a.textContent = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = visibility === 'private'
+          ? `Open ${name || 'private file'}`
+          : url;
       li.appendChild(a);
+      if (visibility === 'private') {
+          li.append(' (private, available only on this device)');
+      }
       uploadListBox.appendChild(li);
   }
   
