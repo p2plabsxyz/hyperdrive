@@ -119,13 +119,54 @@
   visibilitySelect.onchange = updateVisibilityControl;
   updateVisibilityControl();
   
-  // Enable drag-and-drop (files only; use file picker for directories)
+  // A dropped folder shows up in dataTransfer.files as an entry that cannot be
+  // read, so reading it fails with EISDIR. Walk the item entries instead and
+  // collect the real files, carrying the path each one had inside the folder.
+  async function filesFromDataTransfer(dataTransfer) {
+      const entries = Array.from(dataTransfer.items || [])
+          .map((item) => (item.webkitGetAsEntry ? item.webkitGetAsEntry() : null))
+          .filter(Boolean);
+
+      if (!entries.length) return Array.from(dataTransfer.files || []);
+
+      const files = [];
+
+      const visit = (entry, prefix) => new Promise((resolve) => {
+          if (entry.isFile) {
+              entry.file((file) => {
+                  file.relativePath = prefix + entry.name;
+                  files.push(file);
+                  resolve();
+              }, () => resolve());
+              return;
+          }
+
+          if (!entry.isDirectory) return resolve();
+
+          // readEntries yields at most 100 entries per call, so keep reading
+          // until it returns an empty batch.
+          const reader = entry.createReader();
+          const readBatch = () => reader.readEntries(async (batch) => {
+              if (!batch.length) return resolve();
+              await Promise.all(batch.map((child) => visit(child, prefix + entry.name + '/')));
+              readBatch();
+          }, () => resolve());
+          readBatch();
+      });
+
+      await Promise.all(entries.map((entry) => visit(entry, '')));
+      return files;
+  }
+
+  // Enable drag-and-drop for files and folders alike
   uploadBox.ondragover = (e) => { e.preventDefault(); return false; };
   uploadBox.ondrop = async (e) => {
       e.preventDefault();
       const { dataTransfer } = e;
-      if (!dataTransfer || !dataTransfer.files.length) return;
-      await uploadFiles(dataTransfer.files);
+      if (!dataTransfer) return;
+      const files = await filesFromDataTransfer(dataTransfer);
+      if (!files.length) return;
+      await uploadFiles(files);
   };
   
   // Enable click to open file selector
@@ -159,8 +200,9 @@
           let name = 'untitled'; // Default name if we can't determine one
           if (files.length > 0) {
               const file = files[0];
-              if (file.webkitRelativePath) {
-                  name = file.webkitRelativePath.split('/')[0] || file.name;
+              const firstPath = file.relativePath || file.webkitRelativePath;
+              if (firstPath && firstPath.includes('/')) {
+                  name = firstPath.split('/')[0] || file.name;
               } else {
                   name = file.name;
               }
@@ -174,7 +216,7 @@
               return;
           }
           for (const file of files) {
-              const filePath = file.webkitRelativePath || file.name;
+              const filePath = file.relativePath || file.webkitRelativePath || file.name;
               const url = hyperdriveUrl + filePath.split('/').map(encodeURIComponent).join('/');
 
               try {
@@ -204,8 +246,9 @@
       } else {
           const formData = new FormData();
           for (const file of files) {
-              // Use webkitRelativePath to preserve folder structure for directory uploads
-              const filePath = file.webkitRelativePath || file.name;
+              // Preserve folder structure for directory uploads, whether the
+              // folder came from the picker or from a drop.
+              const filePath = file.relativePath || file.webkitRelativePath || file.name;
               console.log(`Appending file for IPFS: ${filePath}`);
               formData.append('file', file, filePath);
           }
