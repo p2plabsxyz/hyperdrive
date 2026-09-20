@@ -111,7 +111,7 @@
       visibilityControl.hidden = !usesHyper;
       visibilityHelp.hidden = !usesHyper;
       visibilityHelp.textContent = visibilitySelect.value === 'private'
-          ? 'Private uploads remain unannounced on this device. They are not encrypted.'
+          ? "Private uploads are encrypted with this profile's key. They are announced on the network, but only devices with the key can read them."
           : 'Public uploads are announced and can be shared with a Hyper URL.';
   }
 
@@ -300,7 +300,7 @@
           : url;
       li.appendChild(a);
       if (visibility === 'private') {
-          li.append(' (private, available only on this device)');
+          li.append(' (private, encrypted)');
       }
       uploadListBox.appendChild(li);
   }
