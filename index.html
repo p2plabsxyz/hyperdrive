@@ -213,6 +213,13 @@
   }
 
   .hd-item--error .hd-item-name { color: var(--hd-error); font-weight: 600; }
+
+  .hd-footnote {
+    margin-top: 28px;
+    font-size: 13.5px;
+  }
+
+  .hd-footnote a { color: var(--hd-accent); }
 </style>
 <main>
   <header class="hd-header">
@@ -261,6 +268,10 @@
     <h2 id="uploadsTitle" hidden>Shared from this computer</h2>
     <ul id="uploadListBox"></ul>
   </section>
+
+  <p class="hd-muted hd-footnote">
+    Everything you share is listed in <a href="peersky://settings/archive">Settings &gt; Archive</a>, to find it again or clear it from the list.
+  </p>
 </main>
 <script type="module" src="./app-welcome.js"></script>
 <script>
