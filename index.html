@@ -9,7 +9,8 @@
 
   :root {
     --hd-text: var(--browser-theme-text-color, #ffffff);
-    --hd-accent: var(--browser-theme-secondary-highlight, #06b6d4);
+    --hd-accent: var(--browser-theme-primary-highlight, #3b82f6);
+    --hd-fill: var(--browser-theme-secondary-highlight, #1d4ed8);
     --hd-surface: color-mix(in srgb, var(--hd-text) 6%, transparent);
     --hd-line: color-mix(in srgb, var(--hd-text) 16%, transparent);
     --hd-error: #e53935;
@@ -139,8 +140,9 @@
     padding: 9px 16px;
     border: 0;
     border-radius: 10px;
-    background: var(--hd-accent);
-    color: var(--browser-theme-background, #18181b);
+    /* Every theme's darker highlight carries white text, in light and dark. */
+    background: var(--hd-fill);
+    color: #ffffff;
     font: inherit;
     font-size: 14px;
     font-weight: 700;
