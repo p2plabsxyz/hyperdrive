@@ -1,106 +1,289 @@
-<meta lang="en" />
+<!DOCTYPE html>
+<html lang="en">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <link rel="icon" type="image/png" href="peersky://static/assets/upload.ico" />
 <title>Hyperdrive</title>
 <style>
   @import url("browser://theme/index.css");
+
+  :root {
+    --hd-text: var(--browser-theme-text-color, #ffffff);
+    --hd-accent: var(--browser-theme-primary-highlight, #3b82f6);
+    --hd-fill: var(--browser-theme-secondary-highlight, #1d4ed8);
+    --hd-surface: color-mix(in srgb, var(--hd-text) 6%, transparent);
+    --hd-line: color-mix(in srgb, var(--hd-text) 16%, transparent);
+    --hd-error: #e53935;
+  }
+
   html {
-    background: var(--browser-theme-background);
-    color: var(--browser-theme-text-color);
-    font-family: var(--browser-theme-font-family);
+    background: var(--browser-theme-background, #18181b);
+    color: var(--hd-text);
+    font-family: var(--browser-theme-font-family, system-ui, sans-serif);
   }
-  #uploadBox {
-    padding: 1em;
-    border: 2px dashed #404950;
-    border-radius: 0.5em;
+
+  body { margin: 0; }
+
+  [hidden] { display: none !important; }
+
+  main {
+    box-sizing: border-box;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 24px 56px;
+  }
+
+  .hd-header {
     display: flex;
-    justify-content: center;
+    gap: 16px;
     align-items: center;
+    margin-bottom: 28px;
   }
+
+  .hd-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    flex: none;
+  }
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 26px;
+    line-height: 1.2;
+  }
+
+  .hd-muted {
+    margin: 0;
+    opacity: 0.72;
+    line-height: 1.5;
+  }
+
+  .hd-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    margin-bottom: 8px;
+  }
+
+  .hd-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .hd-field span { opacity: 0.72; }
+
+  select {
+    min-width: 180px;
+    padding: 9px 12px;
+    border: 1px solid var(--hd-line);
+    border-radius: 10px;
+    background: var(--hd-surface);
+    color: inherit;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 400;
+  }
+
+  #visibilityHelp {
+    margin: 0 0 20px;
+    font-size: 13.5px;
+  }
+
+  #uploadBox {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 36px 20px;
+    border: 2px dashed var(--hd-line);
+    border-radius: 16px;
+    background: var(--hd-surface);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+
+  #uploadBox:hover,
+  #uploadBox:focus-visible,
+  #uploadBox.is-dragging {
+    border-color: var(--hd-accent);
+    background: color-mix(in srgb, var(--hd-accent) 10%, transparent);
+    outline: none;
+  }
+
   #uploadBox svg {
-    color: var(--peersky-nav-button-color);
-    width: 100px;
-    height: 100px;
+    width: 44px;
+    height: 44px;
+    margin-bottom: 6px;
+    color: var(--hd-accent);
+  }
+
+  .hd-drop-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
   }
 
   #pickerActions {
     display: flex;
-    gap: 0.75em;
+    flex-wrap: wrap;
+    gap: 10px;
     justify-content: center;
-    margin-top: 0.75em;
-  }
-  #protocolSelect {
-    margin-bottom: 20px;
+    margin-top: 10px;
   }
 
-  #visibilityControl {
-    margin-left: 1em;
+  .hd-button {
+    padding: 9px 16px;
+    border: 0;
+    border-radius: 10px;
+    /* Every theme's darker highlight carries white text, in light and dark. */
+    background: var(--hd-fill);
+    color: #ffffff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
   }
 
-  #visibilityHelp {
-    display: block;
-    margin: 0 0 1em;
-    opacity: 0.75;
+  .hd-button--quiet {
+    background: color-mix(in srgb, var(--hd-text) 10%, transparent);
+    color: inherit;
   }
 
-  [hidden] {
-    display: none !important;
+  .hd-button:hover { filter: brightness(1.08); }
+
+  .hd-uploads h2 {
+    margin: 32px 0 12px;
+    font-size: 17px;
   }
 
-  a {
-    color: var(--browser-theme-text-color);
-    padding: 0.15em 0.5em;
-    border-radius: 0.5em;
+  #uploadListBox {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-  main {
-    margin: 1em;
+  .hd-item {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--hd-surface);
   }
-  #uploadListBox li.uploading {
-    font-style: italic;
-    color: var(--browser-theme-text-color);
+
+  .hd-item-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
   }
+
+  .hd-item-name { font-weight: 600; overflow-wrap: anywhere; }
+
+  .hd-item-link {
+    overflow: hidden;
+    color: var(--hd-accent);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hd-badge {
+    flex: none;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--hd-accent) 16%, transparent);
+    color: var(--hd-accent);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .hd-item--uploading .hd-item-name { font-weight: 400; font-style: italic; opacity: 0.8; }
+
+  .hd-item--error {
+    background: color-mix(in srgb, var(--hd-error) 12%, transparent);
+  }
+
+  .hd-item--error .hd-item-name { color: var(--hd-error); font-weight: 600; }
+
+  .hd-footnote {
+    margin-top: 28px;
+    font-size: 13.5px;
+  }
+
+  .hd-footnote a { color: var(--hd-accent); }
 </style>
 <main>
-  <label for="protocolSelect">
-    Protocol:
-    <select id="protocolSelect">
-      <option value="hyper" selected>hyper://</option>
-      <option value="ipfs">ipfs://</option>
-    </select>
-  </label>
-  <label id="visibilityControl" for="visibilitySelect">
-    Visibility:
-    <select id="visibilitySelect">
-      <option value="public" selected>Public</option>
-      <option value="private">Private</option>
-    </select>
-  </label>
-  <small id="visibilityHelp">Public uploads are announced and can be shared with a Hyper URL.</small>
-  <input type="file" id="fileInput" multiple style="display: none;" />
-  <input type="file" id="folderInput" multiple webkitdirectory directory style="display: none;" />
-  <section id="uploadBox">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-upload" viewBox="0 0 16 16">
+  <header class="hd-header">
+    <img class="hd-icon" src="./app-icon.png" alt="" />
+    <div>
+      <h1>Hyperdrive</h1>
+      <p class="hd-muted">Share files and folders straight from this computer.</p>
+    </div>
+  </header>
+
+  <section class="hd-options" aria-label="How to share">
+    <label class="hd-field" for="protocolSelect">
+      <span>Network</span>
+      <select id="protocolSelect">
+        <option value="hyper" selected>hyper://</option>
+        <option value="ipfs">ipfs://</option>
+      </select>
+    </label>
+    <label class="hd-field" id="visibilityControl" for="visibilitySelect">
+      <span>Who can open it</span>
+      <select id="visibilitySelect">
+        <option value="public" selected>Public</option>
+        <option value="private">Private</option>
+      </select>
+    </label>
+  </section>
+  <p id="visibilityHelp" class="hd-muted"></p>
+
+  <input type="file" id="fileInput" multiple hidden />
+  <input type="file" id="folderInput" multiple webkitdirectory directory hidden />
+
+  <section id="uploadBox" tabindex="0" role="button" aria-label="Choose files to share, or drop them here">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
       <path d="M7.646 1.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 2.707V11.5a.5.5 0 0 1-1 0V2.707L5.354 4.854a.5.5 0 1 1-.708-.708z"/>
-    </svg>  
+    </svg>
+    <p class="hd-drop-title">Drop files or a folder here</p>
+    <p class="hd-muted">or pick them</p>
+    <div id="pickerActions">
+      <button id="chooseFiles" type="button" class="hd-button">Choose files</button>
+      <button id="chooseFolder" type="button" class="hd-button hd-button--quiet">Choose folder</button>
+    </div>
   </section>
-  <div id="pickerActions">
-    <button id="chooseFiles" type="button">Choose files</button>
-    <button id="chooseFolder" type="button">Choose folder</button>
-  </div>
-  <ul id="uploadListBox"></ul>
+
+  <section class="hd-uploads">
+    <h2 id="uploadsTitle" hidden>Shared from this computer</h2>
+    <ul id="uploadListBox"></ul>
+  </section>
+
+  <p class="hd-muted hd-footnote">
+    Everything you share is listed in <a href="peersky://settings/archive">Settings &gt; Archive</a>, to find it again or clear it from the list.
+  </p>
 </main>
+<script type="module" src="./app-welcome.js"></script>
 <script>
   function $(query) {
       return document.querySelector(query);
   }
-  
+
   const uploadBox = $('#uploadBox');
   const fileInput = $('#fileInput');
   const folderInput = $('#folderInput');
   const uploadListBox = $('#uploadListBox');
+  const uploadsTitle = $('#uploadsTitle');
   const protocolSelect = $('#protocolSelect');
   const visibilityControl = $('#visibilityControl');
   const visibilitySelect = $('#visibilitySelect');
@@ -111,14 +294,14 @@
       visibilityControl.hidden = !usesHyper;
       visibilityHelp.hidden = !usesHyper;
       visibilityHelp.textContent = visibilitySelect.value === 'private'
-          ? "Private uploads are encrypted with this profile's key. They are announced on the network, but only devices with the key can read them."
-          : 'Public uploads are announced and can be shared with a Hyper URL.';
+          ? "Encrypted with this profile's key, so only your own linked devices can open it."
+          : 'Anyone you send the link to can open it, straight from this computer.';
   }
 
   protocolSelect.onchange = updateVisibilityControl;
   visibilitySelect.onchange = updateVisibilityControl;
   updateVisibilityControl();
-  
+
   // A dropped folder shows up in dataTransfer.files as an entry that cannot be
   // read, so reading it fails with EISDIR. Walk the item entries instead and
   // collect the real files, carrying the path each one had inside the folder.
@@ -158,66 +341,79 @@
       return files;
   }
 
-  // Enable drag-and-drop for files and folders alike
+  // Drag and drop for files and folders alike, with the box lighting up while
+  // something is held over it.
+  let dragDepth = 0;
+  uploadBox.ondragenter = (e) => { e.preventDefault(); dragDepth++; uploadBox.classList.add('is-dragging'); };
+  uploadBox.ondragleave = () => { if (--dragDepth <= 0) { dragDepth = 0; uploadBox.classList.remove('is-dragging'); } };
   uploadBox.ondragover = (e) => { e.preventDefault(); return false; };
   uploadBox.ondrop = async (e) => {
       e.preventDefault();
+      dragDepth = 0;
+      uploadBox.classList.remove('is-dragging');
       const { dataTransfer } = e;
       if (!dataTransfer) return;
       const files = await filesFromDataTransfer(dataTransfer);
       if (!files.length) return;
       await uploadFiles(files);
   };
-  
-  // Enable click to open file selector
-  uploadBox.onclick = () => {
+
+  // Anywhere in the box picks files; the two buttons say which kind.
+  uploadBox.onclick = () => fileInput.click();
+  uploadBox.onkeydown = (e) => {
+      if (e.target !== uploadBox || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
       fileInput.click();
   };
+  $('#chooseFiles').onclick = (e) => { e.stopPropagation(); fileInput.click(); };
+  $('#chooseFolder').onclick = (e) => { e.stopPropagation(); folderInput.click(); };
 
-  $('#chooseFiles').onclick = () => fileInput.click();
-  $('#chooseFolder').onclick = () => folderInput.click();
-  
-  // Handle file selection
   for (const input of [fileInput, folderInput]) {
       input.onchange = async () => {
           if (input.files.length > 0) {
-              await uploadFiles(input.files);
+              await uploadFiles(Array.from(input.files));
               input.value = ''; // Allow selecting the same file or folder again
           }
-      }
+      };
   }
-  
+
+  function pathOf(file) {
+      return file.relativePath || file.webkitRelativePath || file.name;
+  }
+
+  // The folder a set of files came from, when they all came from one.
+  function folderOf(files) {
+      const first = pathOf(files[0]);
+      if (!first.includes('/')) return null;
+      const folder = first.split('/')[0];
+      return files.every((file) => pathOf(file).startsWith(folder + '/')) ? folder : null;
+  }
+
   async function uploadFiles(files) {
-      const uploadingItem = document.createElement('li');
-      uploadingItem.className = 'uploading';
-      uploadingItem.textContent = 'Uploading...';
-      uploadListBox.appendChild(uploadingItem);
-      
-      const protocol = protocolSelect.value;
-  
-      if (protocol === 'hyper') {
+      const folder = folderOf(files);
+      const progress = addProgress(folder || files[0].name);
+
+      if (protocolSelect.value === 'hyper') {
           const visibility = visibilitySelect.value;
-          let name = 'untitled'; // Default name if we can't determine one
-          if (files.length > 0) {
-              const file = files[0];
-              const firstPath = file.relativePath || file.webkitRelativePath;
-              if (firstPath && firstPath.includes('/')) {
-                  name = firstPath.split('/')[0] || file.name;
-              } else {
-                  name = file.name;
-              }
-          }
+          // Named after the folder it came from, or the first file.
+          const firstPath = pathOf(files[0]);
+          const name = (firstPath.includes('/') ? firstPath.split('/')[0] : files[0].name) || 'untitled';
           let hyperdriveUrl;
           try {
               hyperdriveUrl = await generateHyperdriveKey(name, visibility);
           } catch (error) {
               addError(name, error.message);
-              uploadingItem.remove();
+              progress.remove();
               return;
           }
-          for (const file of files) {
-              const filePath = file.relativePath || file.webkitRelativePath || file.name;
+
+          let shared = 0;
+          for (const [index, file] of files.entries()) {
+              const filePath = pathOf(file);
               const url = hyperdriveUrl + filePath.split('/').map(encodeURIComponent).join('/');
+              progress.setText(files.length > 1
+                  ? `Sharing ${index + 1} of ${files.length}: ${filePath}`
+                  : `Sharing ${filePath}`);
 
               try {
                   const buffer = await file.arrayBuffer();
@@ -228,87 +424,129 @@
                           'Content-Type': 'application/octet-stream'
                       }
                   });
-  
-                  console.log(`Response for ${file.name}: ${response.status}, ok: ${response.ok}`);
                   if (!response.ok) {
-                      const errorText = await response.text();
-                      console.error(`Error uploading ${file.name}: ${errorText}`);
-                      addError(file.name, errorText);
+                      addError(filePath, await response.text());
                       continue;
                   }
-  
-                  addURL(url, { name: filePath, visibility });
+                  shared++;
+                  // A folder is one link, to the folder, not one for every file.
+                  if (!folder) addURL(url, { name: filePath, visibility });
               } catch (error) {
-                  console.error(`Error uploading ${file.name}:`, error);
-                  addError(file.name, error.message);
+                  addError(filePath, error.message);
               }
+          }
+          if (folder && shared > 0) {
+              addURL(hyperdriveUrl + encodeURIComponent(folder) + '/', {
+                  name: `${folder} (${shared} ${shared === 1 ? 'file' : 'files'})`,
+                  visibility
+              });
           }
       } else {
           const formData = new FormData();
           for (const file of files) {
               // Preserve folder structure for directory uploads, whether the
               // folder came from the picker or from a drop.
-              const filePath = file.relativePath || file.webkitRelativePath || file.name;
-              console.log(`Appending file for IPFS: ${filePath}`);
-              formData.append('file', file, filePath);
+              formData.append('file', file, pathOf(file));
           }
-          const url = `ipfs://bafyaabakaieac/`;
-          console.log(`Sending to IPFS: ${url}`);
-  
+          progress.setText(`Sharing ${folder || files[0].name} on IPFS`);
+
           try {
-              const response = await fetch(url, {
+              const response = await fetch('ipfs://bafyaabakaieac/', {
                   method: 'PUT',
                   body: formData,
               });
-              console.log(`IPFS Response: ${response.status}`);
               if (!response.ok) {
-                  addError(files[0].name, await response.text());
-                  return;
+                  addError(folder || files[0].name, await response.text());
+              } else {
+                  addURL(response.headers.get('Location'), { name: folder || files[0].name });
               }
-              const locationHeader = response.headers.get('Location');
-              addURL(locationHeader);
           } catch (error) {
-              console.error(`Error uploading to IPFS:`, error);
-              addError(files[0].name, error.message);
+              addError(folder || files[0].name, error.message);
           }
       }
-      uploadingItem.remove();
+      progress.remove();
   }
-  
+
   async function generateHyperdriveKey(name, visibility) {
+      const params = new URLSearchParams({ key: name, visibility });
+      const response = await fetch(`hyper://localhost/?${params}`, { method: 'POST' });
+      if (!response.ok) {
+          throw new Error(`Failed to generate Hyperdrive key: ${response.statusText}`);
+      }
+      return await response.text();
+  }
+
+  function element(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+  }
+
+  // Newest first, under a heading that appears with the first one.
+  function addItem(item) {
+      uploadsTitle.hidden = false;
+      uploadListBox.prepend(item);
+      return item;
+  }
+
+  function addProgress(name) {
+      const item = element('li', 'hd-item hd-item--uploading');
+      const label = element('span', 'hd-item-name', `Sharing ${name}`);
+      const text = element('div', 'hd-item-text');
+      text.append(label);
+      item.append(text);
+      addItem(item);
+      return {
+          setText: (value) => { label.textContent = value; },
+          remove: () => item.remove(),
+      };
+  }
+
+  async function copyText(value) {
       try {
-          const params = new URLSearchParams({ key: name, visibility });
-          const response = await fetch(`hyper://localhost/?${params}`, { method: 'POST' });
-          if (!response.ok) {
-              throw new Error(`Failed to generate Hyperdrive key: ${response.statusText}`);
-          }
-          return await response.text();
-      } catch (error) {
-          console.error('Error generating Hyperdrive key:', error);
-          throw error;
+          await navigator.clipboard.writeText(value);
+          return true;
+      } catch {
+          const area = element('textarea');
+          area.value = value;
+          document.body.append(area);
+          area.select();
+          const copied = document.execCommand('copy');
+          area.remove();
+          return copied;
       }
   }
-  
+
   function addURL(url, { name, visibility } = {}) {
-      const li = document.createElement('li');
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = visibility === 'private'
-          ? `Open ${name || 'private file'}`
-          : url;
-      li.appendChild(a);
-      if (visibility === 'private') {
-          li.append(' (private, encrypted)');
-      }
-      uploadListBox.appendChild(li);
+      if (!url) return;
+      const item = element('li', 'hd-item');
+      const text = element('div', 'hd-item-text');
+      text.append(element('span', 'hd-item-name', name || url));
+      const link = element('a', 'hd-item-link', url);
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      text.append(link);
+      item.append(text);
+      if (visibility === 'private') item.append(element('span', 'hd-badge', 'Private'));
+      const copy = element('button', 'hd-button hd-button--quiet', 'Copy link');
+      copy.type = 'button';
+      copy.onclick = async () => {
+          copy.textContent = await copyText(url) ? 'Copied' : 'Copy failed';
+          setTimeout(() => { copy.textContent = 'Copy link'; }, 1500);
+      };
+      item.append(copy);
+      addItem(item);
   }
-  
+
   function addError(name, text) {
-      const li = document.createElement('li');
-      li.className = 'log';
-      li.textContent = `Error in ${name}: ${text}`;
-      uploadListBox.appendChild(li);
+      const item = element('li', 'hd-item hd-item--error');
+      const words = element('div', 'hd-item-text');
+      words.append(element('span', 'hd-item-name', `Could not share ${name}`));
+      if (text) words.append(element('span', 'hd-muted', text));
+      item.append(words);
+      addItem(item);
   }
 </script>
+</html>
