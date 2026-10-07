@@ -24,6 +24,11 @@
 
   body { margin: 0; }
 
+  /* The browser theme imported above keeps its own window from scrolling, by
+     fixing html and body to the window with overflow hidden. This page
+     scrolls like any other. */
+  html, body { height: auto; overflow: visible; }
+
   [hidden] { display: none !important; }
 
   main {
@@ -163,6 +168,10 @@
 
   #uploadListBox {
     display: grid;
+    /* A grid column will not shrink below its widest unbreakable line, so a
+       long link widened the whole list past the page instead of ending in an
+       ellipsis. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     margin: 0;
     padding: 0;
