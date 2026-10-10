@@ -21,7 +21,7 @@ export const HYPERDRIVE_WELCOME = {
     {
       icon: SHIELD_LOCK,
       title: "Private when you want",
-      body: "Private uploads are encrypted with this profile’s key, so only your own linked devices can open them.",
+      body: "Private uploads are encrypted with this profile’s key, so only your own linked devices can open them, and they show up there on their own.",
     },
     {
       icon: FOLDER,
