@@ -151,6 +151,7 @@
     font: inherit;
     font-size: 14px;
     font-weight: 700;
+    text-decoration: none;
     cursor: pointer;
   }
 
@@ -166,7 +167,8 @@
     font-size: 17px;
   }
 
-  #uploadListBox {
+  #uploadListBox,
+  #deviceFileList {
     display: grid;
     /* A grid column will not shrink below its widest unbreakable line, so a
        long link widened the whole list past the page instead of ending in an
@@ -196,6 +198,8 @@
   }
 
   .hd-item-name { font-weight: 600; overflow-wrap: anywhere; }
+
+  .hd-item-meta { font-size: 13px; opacity: 0.75; }
 
   .hd-item-link {
     overflow: hidden;
@@ -271,6 +275,11 @@
       <button id="chooseFiles" type="button" class="hd-button">Choose files</button>
       <button id="chooseFolder" type="button" class="hd-button hd-button--quiet">Choose folder</button>
     </div>
+  </section>
+
+  <section class="hd-uploads" id="deviceFiles" hidden>
+    <h2>From your devices</h2>
+    <ul id="deviceFileList"></ul>
   </section>
 
   <section class="hd-uploads">
@@ -548,6 +557,77 @@
       item.append(copy);
       addItem(item);
   }
+
+  // Private files from your other devices, such as your phone, which show up
+  // here on their own once the two have met. A copy of a phone's files is kept
+  // on this computer, so they open with the phone asleep. Older PeerSky has no
+  // such list, and the section stays hidden.
+  const deviceFiles = $('#deviceFiles');
+  const deviceFileList = $('#deviceFileList');
+  const devicesApi = window.electronAPI && window.electronAPI.devices;
+
+  function deviceLabels(devices) {
+      const names = { phone: 'phone', desktop: 'desktop' };
+      const byType = {};
+      for (const device of [...devices].sort((a, b) => (a.firstSeen || 0) - (b.firstSeen || 0))) {
+          if (!names[device.type]) continue;
+          (byType[device.type] = byType[device.type] || []).push(device);
+      }
+      const labels = new Map();
+      for (const [type, list] of Object.entries(byType)) {
+          list.forEach((device, index) => {
+              labels.set(device.id, list.length > 1 ? `${names[type]} ${index + 1}` : names[type]);
+          });
+      }
+      return labels;
+  }
+
+  function formatSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+      if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+      return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
+
+  function deviceFileItem(file, labels) {
+      const item = element('li', 'hd-item');
+      const text = element('div', 'hd-item-text');
+      text.append(element('span', 'hd-item-name', file.type === 'directory' ? `${file.name}/` : file.name));
+      const size = file.type === 'file' ? formatSize(file.byteLength) : 'Folder';
+      const where = `On your ${labels.get(file.deviceId) || file.deviceType}`;
+      text.append(element('span', 'hd-item-meta', size ? `${where} - ${size}` : where));
+      item.append(text);
+      item.append(element('span', 'hd-badge', 'Private'));
+      const open = element('a', 'hd-button hd-button--quiet', 'Open');
+      open.href = file.url;
+      open.target = '_blank';
+      open.rel = 'noopener noreferrer';
+      item.append(open);
+      return item;
+  }
+
+  async function refreshDeviceFiles() {
+      if (!devicesApi || typeof devicesApi.list !== 'function') return;
+      let snapshot;
+      try {
+          snapshot = await devicesApi.list();
+      } catch {
+          return;
+      }
+      const files = Array.isArray(snapshot && snapshot.files) ? snapshot.files : [];
+      const labels = deviceLabels(Array.isArray(snapshot.devices) ? snapshot.devices : []);
+      deviceFileList.replaceChildren(...files.map((file) => deviceFileItem(file, labels)));
+      deviceFiles.hidden = files.length === 0;
+  }
+
+  refreshDeviceFiles();
+  setInterval(() => {
+      if (document.visibilityState === 'visible') refreshDeviceFiles();
+  }, 5000);
+  document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') refreshDeviceFiles();
+  });
 
   function addError(name, text) {
       const item = element('li', 'hd-item hd-item--error');
