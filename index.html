@@ -168,7 +168,8 @@
   }
 
   #uploadListBox,
-  #deviceFileList {
+  #deviceFileList,
+  #ownFileList {
     display: grid;
     /* A grid column will not shrink below its widest unbreakable line, so a
        long link widened the whole list past the page instead of ending in an
@@ -287,8 +288,13 @@
     <ul id="uploadListBox"></ul>
   </section>
 
+  <section class="hd-uploads" id="ownFiles" hidden>
+    <h2>Your private uploads</h2>
+    <ul id="ownFileList"></ul>
+  </section>
+
   <p class="hd-muted hd-footnote">
-    Everything you share is listed in <a href="peersky://settings/archive">Settings &gt; Archive</a>, to find it again or clear it from the list.
+    What you share in public is listed in <a href="peersky://settings/p2p-data">Settings &gt; P2P data</a>, to find it again or clear it from the list.
   </p>
 </main>
 <script type="module" src="./app-welcome.js"></script>
@@ -448,17 +454,18 @@
                   }
                   shared++;
                   // A folder is one link, to the folder, not one for every file.
-                  if (!folder) addURL(url, { name: filePath, visibility });
+                  if (!folder && !listedAsOwn(visibility)) addURL(url, { name: filePath, visibility });
               } catch (error) {
                   addError(filePath, error.message);
               }
           }
-          if (folder && shared > 0) {
+          if (folder && shared > 0 && !listedAsOwn(visibility)) {
               addURL(hyperdriveUrl + encodeURIComponent(folder) + '/', {
                   name: `${folder} (${shared} ${shared === 1 ? 'file' : 'files'})`,
                   visibility
               });
           }
+          if (visibility === 'private' && shared > 0) refreshOwnFiles();
       } else {
           const formData = new FormData();
           for (const file of files) {
@@ -536,6 +543,22 @@
       }
   }
 
+  // A private upload goes in Your private uploads, which has its link too, so
+  // it is not listed twice. An older PeerSky has no such list.
+  function listedAsOwn(visibility) {
+      return visibility === 'private' && !!privateFilesApi && typeof privateFilesApi.list === 'function';
+  }
+
+  function copyButton(url) {
+      const copy = element('button', 'hd-button hd-button--quiet', 'Copy link');
+      copy.type = 'button';
+      copy.onclick = async () => {
+          copy.textContent = await copyText(url) ? 'Copied' : 'Copy failed';
+          setTimeout(() => { copy.textContent = 'Copy link'; }, 1500);
+      };
+      return copy;
+  }
+
   function addURL(url, { name, visibility } = {}) {
       if (!url) return;
       const item = element('li', 'hd-item');
@@ -548,13 +571,7 @@
       text.append(link);
       item.append(text);
       if (visibility === 'private') item.append(element('span', 'hd-badge', 'Private'));
-      const copy = element('button', 'hd-button hd-button--quiet', 'Copy link');
-      copy.type = 'button';
-      copy.onclick = async () => {
-          copy.textContent = await copyText(url) ? 'Copied' : 'Copy failed';
-          setTimeout(() => { copy.textContent = 'Copy link'; }, 1500);
-      };
-      item.append(copy);
+      item.append(copyButton(url));
       addItem(item);
   }
 
@@ -590,12 +607,12 @@
       return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   }
 
-  function deviceFileItem(file, labels) {
+  // A private file or folder: where it is, how big, and a way to open it.
+  function privateFileItem(file, where) {
       const item = element('li', 'hd-item');
       const text = element('div', 'hd-item-text');
       text.append(element('span', 'hd-item-name', file.type === 'directory' ? `${file.name}/` : file.name));
       const size = file.type === 'file' ? formatSize(file.byteLength) : 'Folder';
-      const where = `On your ${labels.get(file.deviceId) || file.deviceType}`;
       text.append(element('span', 'hd-item-meta', size ? `${where} - ${size}` : where));
       item.append(text);
       item.append(element('span', 'hd-badge', 'Private'));
@@ -604,7 +621,14 @@
       open.target = '_blank';
       open.rel = 'noopener noreferrer';
       item.append(open);
+      // Opens only on your own devices, so it can go to your phone or into
+      // your chat with yourself.
+      item.append(copyButton(file.url));
       return item;
+  }
+
+  function deviceFileItem(file, labels) {
+      return privateFileItem(file, `On your ${labels.get(file.deviceId) || file.deviceType}`);
   }
 
   async function refreshDeviceFiles() {
@@ -621,12 +645,48 @@
       deviceFiles.hidden = files.length === 0;
   }
 
+  // Private files shared from this computer. PeerSky lists them again from
+  // their drives, so they are here after a restart, newest first, the way the
+  // phone keeps its own uploads under Recent. Older PeerSky has no such list,
+  // and the section stays hidden.
+  const ownFiles = $('#ownFiles');
+  const ownFileList = $('#ownFileList');
+  const privateFilesApi = window.electronAPI && window.electronAPI.privateFiles;
+  // An answer to an older request never replaces a newer one: one made before
+  // an upload ended would leave the new file out.
+  let ownFilesRequest = 0;
+
+  function uploadedOn(timestamp) {
+      const date = new Date(timestamp);
+      return Number.isNaN(date.getTime()) ? 'Uploaded' : `Uploaded ${date.toLocaleDateString()}`;
+  }
+
+  async function refreshOwnFiles() {
+      if (!privateFilesApi || typeof privateFilesApi.list !== 'function') return;
+      const request = ++ownFilesRequest;
+      let listed;
+      try {
+          listed = await privateFilesApi.list();
+      } catch {
+          return;
+      }
+      if (request !== ownFilesRequest) return;
+      const files = Array.isArray(listed && listed.files) ? listed.files : [];
+      ownFileList.replaceChildren(...files.map((file) => privateFileItem(file, uploadedOn(file.timestamp))));
+      ownFiles.hidden = files.length === 0;
+  }
+
   refreshDeviceFiles();
+  refreshOwnFiles();
   setInterval(() => {
       if (document.visibilityState === 'visible') refreshDeviceFiles();
   }, 5000);
+  // Only this computer adds to its own list, from this page or from P2PMD in
+  // another tab, so it is read again when the page is back in front.
   document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') refreshDeviceFiles();
+      if (document.visibilityState !== 'visible') return;
+      refreshDeviceFiles();
+      refreshOwnFiles();
   });
 
   function addError(name, text) {
