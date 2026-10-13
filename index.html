@@ -524,7 +524,12 @@
       addItem(item);
       return {
           setText: (value) => { label.textContent = value; },
-          remove: () => item.remove(),
+          // A private upload is listed under Your private uploads instead, so
+          // this list can be left with nothing in it, and loses its title then.
+          remove: () => {
+              item.remove();
+              uploadsTitle.hidden = uploadListBox.children.length === 0;
+          },
       };
   }
 
