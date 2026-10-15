@@ -1,0 +1,5 @@
+places.js holds place names from GeoNames (https://www.geonames.org),
+licensed under Creative Commons Attribution 4.0
+(https://creativecommons.org/licenses/by/4.0/). It is GeoNames' list of
+places with 15,000 people or more, cut down to name, country code, latitude
+and longitude by scripts/build-places.mjs.

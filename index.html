@@ -441,12 +441,16 @@
 
               try {
                   const buffer = await file.arrayBuffer();
+                  const headers = { 'Content-Type': 'application/octet-stream' };
+                  // The file keeps its own date in the drive, which Photos
+                  // falls back on for a picture that has none inside it.
+                  if (Number.isFinite(file.lastModified) && file.lastModified > 0) {
+                      headers['Last-Modified'] = new Date(file.lastModified).toUTCString();
+                  }
                   const response = await fetch(url, {
                       method: 'PUT',
                       body: new Uint8Array(buffer),
-                      headers: {
-                          'Content-Type': 'application/octet-stream'
-                      }
+                      headers
                   });
                   if (!response.ok) {
                       addError(filePath, await response.text());
