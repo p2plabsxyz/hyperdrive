@@ -573,13 +573,14 @@
       const item = element('li', 'hd-item');
       const text = element('div', 'hd-item-text');
       text.append(element('span', 'hd-item-name', name || url));
-      const link = element('a', 'hd-item-link', url);
-      link.href = url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      text.append(link);
       item.append(text);
       if (visibility === 'private') item.append(element('span', 'hd-badge', 'Private'));
+      // Open and Copy link, as the private uploads have.
+      const open = element('a', 'hd-button hd-button--quiet', 'Open');
+      open.href = url;
+      open.target = '_blank';
+      open.rel = 'noopener noreferrer';
+      item.append(open);
       item.append(copyButton(url));
       addItem(item);
   }
