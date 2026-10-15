@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   KINDS, extensionOf, baseName, fileName, folderOf, kindOf, isImageKind, isJunk, classify,
-  livePhotoPairs, sidecarsOf, naturalCompare, takeoutIndex, takeoutTarget
+  livePhotoPairs, sidecarsOf, naturalCompare, takeoutIndex, takeoutTarget, previewPathFor, previewEntryFor
 } from '../viewer/lib/kinds.js'
 
 const MB = 1024 * 1024
@@ -271,4 +271,19 @@ test('folderIndex groups files by folder and lists each folder once under its pa
   list.push({ path: '/a/5.jpg', size: 1 })
   assert.equal(folderIndex(list).files.get('/a/').length, 2)
   assert.equal(folderIndex(null).files.size, 0)
+})
+
+test('a HEIC photo\'s JPEG copy lives under /.peersky/previews and is found only in the listing', () => {
+  assert.equal(previewPathFor('/IMG_1.heic'), '/.peersky/previews/IMG_1.heic.jpg')
+  assert.equal(previewPathFor('/Trips/IMG 2.HEIC'), '/.peersky/previews/Trips/IMG 2.HEIC.jpg')
+  assert.equal(previewPathFor('IMG_1.heic'), '/.peersky/previews/IMG_1.heic.jpg')
+  assert.equal(isJunk(previewPathFor('/IMG_1.heic')), true)
+
+  const entries = files(['/IMG_1.heic', '/IMG_2.heic', '/.peersky/previews/IMG_1.heic.jpg'])
+  assert.equal(previewEntryFor('/IMG_1.heic', entries), entries[2])
+  assert.equal(previewEntryFor('/IMG_2.heic', entries), null)
+  assert.equal(previewEntryFor('/IMG_1.heic', []), null)
+  assert.equal(previewEntryFor('/IMG_1.heic', undefined), null)
+  // Only a listed path counts: a lookalike elsewhere does not.
+  assert.equal(previewEntryFor('/IMG_1.heic', files(['/other/.peersky/previews/IMG_1.heic.jpg'])), null)
 })
