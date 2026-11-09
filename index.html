@@ -440,16 +440,20 @@
                   : `Sharing ${filePath}`);
 
               try {
-                  const buffer = await file.arrayBuffer();
                   const headers = { 'Content-Type': 'application/octet-stream' };
                   // The file keeps its own date in the drive, which Photos
                   // falls back on for a picture that has none inside it.
                   if (Number.isFinite(file.lastModified) && file.lastModified > 0) {
                       headers['Last-Modified'] = new Date(file.lastModified).toUTCString();
                   }
+                  // Sent as a stream, read from the disk as it goes. Read whole
+                  // first, a file over 2 GB failed in Chromium with "could not
+                  // be read", and a smaller one sat in memory in full. A Blob
+                  // body would be read whole too, by Electron on the way in.
                   const response = await fetch(url, {
                       method: 'PUT',
-                      body: new Uint8Array(buffer),
+                      body: file.stream(),
+                      duplex: 'half',
                       headers
                   });
                   if (!response.ok) {
