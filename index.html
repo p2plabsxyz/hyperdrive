@@ -228,6 +228,55 @@
 
   .hd-item--error .hd-item-name { color: var(--hd-error); font-weight: 600; }
 
+  .hd-badge--new {
+    background: var(--hd-fill);
+    color: #ffffff;
+  }
+
+  /* What the lists show: a search box once they grow past ten, and files,
+     folders or both. */
+  .hd-tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    align-items: center;
+    margin: 32px 0 0;
+  }
+
+  .hd-search {
+    flex: 1 1 240px;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 9px 12px;
+    border: 1px solid var(--hd-line);
+    border-radius: 10px;
+    background: var(--hd-surface);
+    color: inherit;
+    font: inherit;
+    font-size: 14px;
+  }
+
+  .hd-search:focus-visible,
+  #kindFilter:focus-visible {
+    border-color: var(--hd-accent);
+    outline: none;
+  }
+
+  .hd-search::placeholder { color: inherit; opacity: 0.55; }
+
+  #kindFilter { min-width: 0; }
+
+  .hd-tools .hd-field {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  #noMatches { margin: 16px 0 0; }
+
+  .hd-item.hd-filtered,
+  .hd-uploads.hd-filtered { display: none; }
+
   .hd-footnote {
     margin-top: 28px;
     font-size: 13.5px;
@@ -277,6 +326,19 @@
       <button id="chooseFolder" type="button" class="hd-button hd-button--quiet">Choose folder</button>
     </div>
   </section>
+
+  <section class="hd-tools" id="listTools" aria-label="Find in your files" hidden>
+    <input type="search" id="listSearch" class="hd-search" placeholder="Search files and folders" aria-label="Search files and folders" autocomplete="off" spellcheck="false" hidden />
+    <label class="hd-field" for="kindFilter">
+      <span>Show</span>
+      <select id="kindFilter">
+        <option value="all">Files and folders</option>
+        <option value="file">Files</option>
+        <option value="folder">Folders</option>
+      </select>
+    </label>
+  </section>
+  <p id="noMatches" class="hd-muted" role="status" hidden></p>
 
   <section class="hd-uploads" id="deviceFiles" hidden>
     <h2>From your devices</h2>
@@ -462,7 +524,7 @@
                   }
                   shared++;
                   // A folder is one link, to the folder, not one for every file.
-                  if (!folder && !listedAsOwn(visibility)) addURL(url, { name: filePath, visibility });
+                  if (!folder && !listedAsOwn(visibility)) addURL(url, { name: filePath, visibility, kind: 'file' });
               } catch (error) {
                   addError(filePath, error.message);
               }
@@ -470,7 +532,9 @@
           if (folder && shared > 0 && !listedAsOwn(visibility)) {
               addURL(hyperdriveUrl + encodeURIComponent(folder) + '/', {
                   name: `${folder} (${shared} ${shared === 1 ? 'file' : 'files'})`,
-                  visibility
+                  visibility,
+                  kind: 'folder',
+                  searchName: folder
               });
           }
           if (visibility === 'private' && shared > 0) refreshOwnFiles();
@@ -491,7 +555,7 @@
               if (!response.ok) {
                   addError(folder || files[0].name, await response.text());
               } else {
-                  addURL(response.headers.get('Location'), { name: folder || files[0].name });
+                  addURL(response.headers.get('Location'), { name: folder || files[0].name, kind: folder ? 'folder' : 'file' });
               }
           } catch (error) {
               addError(folder || files[0].name, error.message);
@@ -572,9 +636,16 @@
       return copy;
   }
 
-  function addURL(url, { name, visibility } = {}) {
+  // What the search and the Show menu go by.
+  function markKind(item, kind, name) {
+      item.dataset.kind = kind;
+      item.dataset.name = name;
+      return item;
+  }
+
+  function addURL(url, { name, visibility, kind = 'file', searchName } = {}) {
       if (!url) return;
-      const item = element('li', 'hd-item');
+      const item = markKind(element('li', 'hd-item'), kind, searchName || name || url);
       const text = element('div', 'hd-item-text');
       text.append(element('span', 'hd-item-name', name || url));
       item.append(text);
@@ -622,13 +693,14 @@
   }
 
   // A private file or folder: where it is, how big, and a way to open it.
-  function privateFileItem(file, where) {
-      const item = element('li', 'hd-item');
+  function privateFileItem(file, where, { isNew = false } = {}) {
+      const item = markKind(element('li', 'hd-item'), file.type === 'directory' ? 'folder' : 'file', file.name);
       const text = element('div', 'hd-item-text');
       text.append(element('span', 'hd-item-name', file.type === 'directory' ? `${file.name}/` : file.name));
       const size = file.type === 'file' ? formatSize(file.byteLength) : 'Folder';
       text.append(element('span', 'hd-item-meta', size ? `${where} - ${size}` : where));
       item.append(text);
+      if (isNew) item.append(element('span', 'hd-badge hd-badge--new', 'New'));
       item.append(element('span', 'hd-badge', 'Private'));
       const open = element('a', 'hd-button hd-button--quiet', 'Open');
       open.href = file.url;
@@ -641,8 +713,25 @@
       return item;
   }
 
+  // The first-time welcome (app-welcome.js) covers the page until Get
+  // started. It is a module, so it may not be up yet when the list comes.
+  function welcomeShowing() {
+      if (document.querySelector('.peersky-welcome:not(.is-leaving)')) return true;
+      try {
+          return localStorage.getItem('peersky:welcome:hyperdrive') !== 'seen';
+      } catch {
+          return false;
+      }
+  }
+
+  // What your other devices added since you last looked shows New. Once
+  // PeerSky has it as seen, it keeps the mark while this page stays open.
+  const seenNewFiles = new Set();
+
   function deviceFileItem(file, labels) {
-      return privateFileItem(file, `On your ${labels.get(file.deviceId) || file.deviceType}`);
+      return privateFileItem(file, `On your ${labels.get(file.deviceId) || file.deviceType}`, {
+          isNew: file.new === true || seenNewFiles.has(file.url)
+      });
   }
 
   async function refreshDeviceFiles() {
@@ -657,6 +746,15 @@
       const labels = deviceLabels(Array.isArray(snapshot.devices) ? snapshot.devices : []);
       deviceFileList.replaceChildren(...files.map((file) => deviceFileItem(file, labels)));
       deviceFiles.hidden = files.length === 0;
+      // Seen only with the list on screen: not under the welcome the first
+      // time, and not in a tab behind another, which PeerSky itself checks.
+      const fresh = files.filter((file) => file.new === true);
+      if (!fresh.length || welcomeShowing() || typeof devicesApi.markSeen !== 'function') return;
+      let seen = false;
+      try {
+          seen = await devicesApi.markSeen();
+      } catch {}
+      if (seen === true) for (const file of fresh) seenNewFiles.add(file.url);
   }
 
   // Private files shared from this computer. PeerSky lists them again from
@@ -711,5 +809,70 @@
       item.append(words);
       addItem(item);
   }
+</script>
+<script type="module">
+  import { itemMatches, kindOf, showsSearch } from './list-filter.js';
+
+  // The search box and the Show menu, over the three lists at once. The lists
+  // are filled by the script above, as files arrive; whatever goes in is
+  // filtered here as it lands.
+  const tools = document.getElementById('listTools');
+  const search = document.getElementById('listSearch');
+  const kindFilter = document.getElementById('kindFilter');
+  const noMatches = document.getElementById('noMatches');
+  const lists = ['deviceFileList', 'uploadListBox', 'ownFileList']
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+
+  function applyFilter() {
+      const filter = { kind: kindOf(kindFilter.value), query: search.value };
+      let count = 0;
+      let shown = 0;
+      for (const list of lists) {
+          let listShown = 0;
+          let listItems = 0;
+          for (const item of list.children) {
+              const kind = item.dataset.kind;
+              const listed = kind === 'file' || kind === 'folder';
+              if (listed) {
+                  count++;
+                  listItems++;
+              }
+              const visible = itemMatches({ kind, name: item.dataset.name }, filter);
+              item.classList.toggle('hd-filtered', !visible);
+              if (visible && listed) {
+                  shown++;
+                  listShown++;
+              }
+          }
+          // A list with nothing left to show loses its heading too, while
+          // something it holds would show under it.
+          const section = list.closest('.hd-uploads');
+          const busy = [...list.children].some((item) => !item.dataset.kind);
+          if (section) section.classList.toggle('hd-filtered', listItems > 0 && listShown === 0 && !busy);
+      }
+      tools.hidden = count === 0;
+      search.hidden = !showsSearch(count, search.value);
+      const filtering = search.value.trim() !== '' || filter.kind !== 'all';
+      noMatches.hidden = !(count > 0 && shown === 0 && filtering);
+      if (!noMatches.hidden) {
+          noMatches.textContent = search.value.trim()
+              ? `Nothing here matches "${search.value.trim()}".`
+              : filter.kind === 'folder' ? 'No folders here.' : 'No files here.';
+      }
+  }
+
+  search.addEventListener('input', applyFilter);
+  search.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && search.value) {
+          event.preventDefault();
+          search.value = '';
+          applyFilter();
+      }
+  });
+  kindFilter.addEventListener('change', applyFilter);
+  const watcher = new MutationObserver(applyFilter);
+  for (const list of lists) watcher.observe(list, { childList: true });
+  applyFilter();
 </script>
 </html>
